@@ -1,0 +1,51 @@
+ docker-compose.yml
+version: '3.8'
+
+services:
+  # 🐘 PostgreSQL + PostGIS
+  db:
+    image: postgis/postgis:15-3.3
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: spark_dev
+      POSTGRES_USER: spark
+      POSTGRES_PASSWORD: sparkpass
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/prisma:/docker-entrypoint-initdb.d
+
+  # 🌐 Backend (NestJS)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://spark:sparkpass@db:5432/spark_dev?schema=public
+      JWT_SECRET: dev-jwt-secret
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # 📱 Mobile (Expo) - Dev only (run locally)
+  # Expo doesn't need Docker, but we document it
+
+  # 🖥️ Admin Dashboard (React)
+  admin:
+    build:
+      context: ./apps/admin-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
